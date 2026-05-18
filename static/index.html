@@ -38,17 +38,17 @@
             <div class="space-y-1.5">
                 <label class="text-[11px] font-bold tracking-wider text-slate-400 uppercase">変換ターゲット設定</label>
                 <select id="audioMode" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 transition-colors cursor-pointer">
-                    <optgroup label="✨ Soxr エンジン (長尺・フルサイズ対応)">
-                        <option value="2ch_96_24_soxr" selected>2ch Stereo | 96kHz / 24bit (Soxrフル版)</option>
-                        <option value="2ch_192_32_soxr">2ch Stereo | 192kHz / 32bit float (Soxrマスタリングフル版)</option>
-                        <option value="5.1ch_96_24_device_soxr">5.1ch Surround | 96kHz / 24bit (Soxrリアルサラウンドフル版)</option>
-                        <option value="5.1ch_96_24_pseudo_soxr">5.1ch Surround | 96kHz / 24bit (Soxr疑似サラウンドフル版)</option>
+                    <optgroup label="✨ Soxr エンジン (60秒以上対応)">
+                        <option value="2ch_96_24_soxr" selected>2ch Stereo | 96kHz / 24bit (ハイレゾ音源)</option>
+                        <option value="2ch_192_32_soxr">2ch Stereo | 192kHz / 32bit float (最高品質)</option>
+                        <option value="5.1ch_96_24_device_soxr">5.1ch Surround | 96kHz / 24bit (サラウンド・映画音響)</option>
+                        <option value="5.1ch_96_24_pseudo_soxr">5.1ch Surround | 96kHz / 24bit (疑似サラウンド・ステレオ可)</option>
                     </optgroup>
-                    <optgroup label="🔥 Scipy エンジン (極限音質・※選択した60秒のみ切り出し)">
-                        <option value="2ch_96_24_scipy">2ch Stereo | 96kHz / 24bit (Scipyカスタムカット)</option>
-                        <option value="2ch_192_32_scipy">2ch Stereo | 192kHz / 32bit float (Scipyカスタムマスタリング)</option>
-                        <option value="5.1ch_96_24_device_scipy">5.1ch Surround | 96kHz / 24bit (Scipyカスタムシアター)</option>
-                        <option value="5.1ch_96_24_pseudo_scipy">5.1ch Surround | 96kHz / 24bit (Scipyカスタムヘッドホン)</option>
+                    <optgroup label="🔥 Scipy エンジン (極音質・※60秒切り出し)">
+                        <option value="2ch_96_24_scipy">2ch Stereo | 96kHz / 24bit (ハイレゾ音源)</option>
+                        <option value="2ch_192_32_scipy">2ch Stereo | 192kHz / 32bit float (最高品質)</option>
+                        <option value="5.1ch_96_24_device_scipy">5.1ch Surround | 96kHz / 24bit (サラウンド・映画音響)</option>
+                        <option value="5.1ch_96_24_pseudo_scipy">5.1ch Surround | 96kHz / 24bit (疑似サラウンド・ステレオ可)</option>
                     </optgroup>
                 </select>
             </div>
@@ -165,15 +165,16 @@
             
             fileNameDisplay.textContent = file.name;
             
-            // Scipyモードなら波形エリアを表示
             if (audioMode.value.includes('_scipy')) {
                 trimmerContainer.classList.remove('hidden');
             }
 
-            // 古い波形インスタンスがあれば破棄
-            if (wavesurfer) wavesurfer.destroy();
+            // インスタンスが既にあったら掃除
+            if (wavesurfer) {
+                wavesurfer.destroy();
+            }
 
-            // 新しい波形をセットアップ
+            // 新しく作り直す
             wavesurfer = WaveSurfer.create({
                 container: '#waveform',
                 waveColor: '#475569',
@@ -182,8 +183,8 @@
                 responsive: true
             });
 
-            // 範囲指定プラグイン初期化
-            wsRegions = wavesurfer.registerPlugin(WaveSurfer.BasePlugin.create());
+            // ★重要：先にRegionプラグインを登録してから読み込む
+            wsRegions = wavesurfer.registerPlugin(WaveSurfer.Regions.create());
 
             const fileURL = URL.createObjectURL(file);
             wavesurfer.load(fileURL);
@@ -192,31 +193,19 @@
                 const totalDuration = wavesurfer.getDuration();
                 const endPos = Math.min(60.0, totalDuration);
 
-                // 60秒の枠（リージョン）を生成
-                activeRegion = wsRegions.addRegion({
+                // リージョンを追加
+                wsRegions.addRegion({
                     start: 0,
                     end: endPos,
-                    color: 'rgba(245, 158, 11, 0.2)', // アンバー（オレンジ風）
+                    color: 'rgba(245, 158, 11, 0.2)',
                     drag: true,
                     resize: true
                 });
 
                 currentStartTime = 0.0;
-                trimInfo.textContent = `0.0s - ${endPos.toFixed(1)}s (${(endPos).toFixed(1)}s選択)`;
-
-                // スライダーが動かされた時の変更をキャッチ
-                wsRegions.on('region-updated', (region) => {
-                    let duration = region.end - region.start;
-                    // 60秒を超えそうになったら強制固定するガード処理
-                    if (duration > 60.1) {
-                        region.setOptions({ end: region.start + 60.0 });
-                    }
-                    currentStartTime = region.start;
-                    trimInfo.textContent = `${region.start.toFixed(1)}s - ${region.end.toFixed(1)}s (${(region.end - region.start).toFixed(1)}s選択)`;
-                });
+                trimInfo.textContent = `0.0s - ${endPos.toFixed(1)}s (${endPos.toFixed(1)}s選択)`;
             });
         });
-
         menuBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             dropdownMenu.classList.toggle('hidden');

@@ -52,7 +52,7 @@ async def upload_audio(
     background_tasks: BackgroundTasks, 
     file: UploadFile = File(...),
     mode: str = Form("2ch_96_24_soxr"),
-    start_time: float = Form(0.0)
+    start_time: float = Form(0.0)  # 🟢 フロントからカット開始位置（秒）を受け取る
 ):
     unique_id = str(uuid.uuid4())
     task_dir = os.path.join(UPLOAD_DIR, unique_id)
@@ -75,9 +75,11 @@ async def upload_audio(
 
     print(f"Loading audio (Engine: {'Scipy' if is_scipy else 'Soxr'}, Start: {start_time}s)...")
     
+    # 🟢 Scipyモードなら指定された開始位置から最大60秒だけをピンポイントロード！
     if is_scipy:
         y, sr = librosa.load(input_path, sr=None, mono=False, offset=start_time, duration=60.0, dtype=np.float32)
     else:
+        # Soxrモードは今まで通りフル尺
         y, sr = librosa.load(input_path, sr=None, mono=False, dtype=np.float32)
 
     if y.ndim == 1:
