@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+            text-align: center;
+            padding-top: 100px;
+        }
+
+        button {
+            padding: 15px 30px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<h1>AI Audio Enhance</h1>
+
+<input type="file" id="fileInput">
+<br><br>
+<button onclick="uploadFile()">変換</button>
+
+<p id="status"></p>
+
+<script>
+async function uploadFile() {
+
+    const fileInput = document.getElementById('fileInput');
+    const file = fileInput.files[0];
+
+    if (!file) {
+        alert('ファイル選んで');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    document.getElementById('status').innerText = '変換中...';
+
+    const response = await fetch('/upload', {
+        method: 'POST',
+        body: formData
+    });
+
+    const blob = await response.blob();
+
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'enhanced.wav';
+    a.click();
+
+    document.getElementById('status').innerText = '完了';
+}
+</script>
+
+</body>
+</html>
+    const blob = await response.blob();
+
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'enhanced.wav';
+    a.click();
+
+    document.getElementById('status').innerText = '完了';
+}
+</script>
+
+</body>
+</html>
