@@ -9,6 +9,7 @@
     <style>
         body { background: radial-gradient(circle at center, #1a1c23 0%, #0f1015 100%); }
         .neon-glow { box-shadow: 0 0 20px rgba(6, 182, 212, 0.15); }
+        .bar-glow { box-shadow: 0 0 10px rgba(6, 182, 212, 0.7); }
     </style>
 </head>
 <body class="text-slate-200 min-h-screen flex flex-col items-center justify-center p-6 font-sans">
@@ -17,7 +18,7 @@
         
         <div class="text-center mb-8">
             <div class="inline-block text-xs font-bold tracking-widest text-cyan-400 uppercase bg-cyan-950/50 border border-cyan-800/50 px-3 py-1 rounded-full mb-3">
-                AI Audio Studio v2
+                AI Audio Studio v2.5
             </div>
             <h1 class="text-3xl font-black tracking-tight text-white bg-gradient-to-r from-white via-slate-200 to-cyan-400 bg-clip-text text-transparent">
                 NEXTGEN PROCESSOR
@@ -37,20 +38,22 @@
             </button>
         </form>
 
-        <div id="statusArea" class="hidden mt-6 p-4 rounded-xl bg-slate-950/60 border border-slate-800 text-center">
-            <div class="inline-block w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mb-2"></div>
-            <p class="text-xs font-mono text-cyan-400">ANALYZING & ENHANCING...</p>
+        <div id="statusArea" class="hidden mt-6 p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
+            <div class="flex justify-between text-xs font-mono text-cyan-400">
+                <span id="statusText">PROCESSING CHUNKS...</span>
+                <span id="progressPercent">0%</span>
+            </div>
+            <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div id="progressBar" class="w-0 h-full bg-gradient-to-r from-cyan-500 to-blue-500 bar-glow transition-all duration-300 rounded-full"></div>
+            </div>
         </div>
 
         <div id="resultArea" class="hidden mt-6 space-y-4">
-            
             <p class="text-xs font-bold text-center text-slate-400" id="playingName">File Ready</p>
 
             <div class="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-slate-800">
                 <div class="flex items-center gap-3">
-                    <button id="origPlayBtn" class="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-white rounded-full font-bold transition-all cursor-pointer">
-                        ▶
-                    </button>
+                    <button id="origPlayBtn" class="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-white rounded-full font-bold transition-all cursor-pointer">▶</button>
                     <div>
                         <p class="text-xs font-bold text-slate-300">BEFORE</p>
                         <p class="text-[10px] text-slate-500">Original Audio (Bypass)</p>
@@ -60,9 +63,7 @@
 
             <div class="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-cyan-950/50 relative">
                 <div class="flex items-center gap-3">
-                    <button id="enhPlayBtn" class="w-10 h-10 flex items-center justify-center bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-full font-bold transition-all cursor-pointer">
-                        ▶
-                    </button>
+                    <button id="enhPlayBtn" class="w-10 h-10 flex items-center justify-center bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-full font-bold transition-all cursor-pointer">▶</button>
                     <div>
                         <p class="text-xs font-bold text-white">AFTER</p>
                         <p class="text-[10px] text-cyan-400 font-mono">Enhanced (96kHz / 24bit)</p>
@@ -70,25 +71,17 @@
                 </div>
 
                 <div class="relative">
-                    <button id="menuBtn" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white rounded-full hover:bg-slate-800 text-lg font-bold transition-colors cursor-pointer">
-                        ⋮
-                    </button>
+                    <button id="menuBtn" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white rounded-full hover:bg-slate-800 text-lg font-bold transition-colors cursor-pointer">⋮</button>
                     <div id="dropdownMenu" class="hidden absolute right-0 bottom-10 w-44 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl py-1 z-50 text-xs">
-                        <a id="downloadEnhanced" href="#" class="block px-4 py-2.5 hover:bg-cyan-500 hover:text-slate-950 transition-colors font-medium">
-                            📥 ハイレゾ版を保存
-                        </a>
-                        <a id="downloadOriginal" href="#" class="block px-4 py-2.5 hover:bg-slate-800 transition-colors text-slate-400">
-                            📥 元の音源を保存
-                        </a>
+                        <a id="downloadEnhanced" href="#" class="block px-4 py-2.5 hover:bg-cyan-500 hover:text-slate-950 transition-colors font-medium">📥 ハイレゾ版を保存</a>
+                        <a id="downloadOriginal" href="#" class="block px-4 py-2.5 hover:bg-slate-800 transition-colors text-slate-400">📥 元の音源を保存</a>
                     </div>
                 </div>
             </div>
-
         </div>
     </div>
 
     <script>
-        // 2つの独立したプレイヤー
         let origAudio = new Audio();
         let enhAudio = new Audio();
 
@@ -99,26 +92,26 @@
         const statusArea = document.getElementById('statusArea');
         const resultArea = document.getElementById('resultArea');
         
+        const progressBar = document.getElementById('progressBar');
+        const progressPercent = document.getElementById('progressPercent');
+        const statusText = document.getElementById('statusText');
+
         const origPlayBtn = document.getElementById('origPlayBtn');
         const enhPlayBtn = document.getElementById('enhPlayBtn');
-        
         const menuBtn = document.getElementById('menuBtn');
         const dropdownMenu = document.getElementById('dropdownMenu');
-        const downloadEnhanced = document.getElementById('downloadEnhanced');
-        const downloadOriginal = document.getElementById('downloadOriginal');
 
         fileInput.addEventListener('change', (e) => {
             if(e.target.files[0]) fileNameDisplay.textContent = e.target.files[0].name;
         });
 
-        // 3点リーダーの開閉
         menuBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             dropdownMenu.classList.toggle('hidden');
         });
         document.addEventListener('click', () => dropdownMenu.classList.add('hidden'));
 
-        // フォーム送信（変換）
+        // フォーム送信
         uploadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const file = fileInput.files[0];
@@ -127,46 +120,70 @@
             const formData = new FormData();
             formData.append('file', file);
 
+            // UI初期化
             submitBtn.disabled = true;
             statusArea.classList.remove('hidden');
             resultArea.classList.add('hidden');
+            progressBar.style.w = '0%';
+            progressPercent.textContent = '0%';
+            statusText.textContent = 'UPLOADING FILE...';
 
-            // 前の再生を止める
-            origAudio.pause(); origAudio.currentTime = 0;
-            enhAudio.pause();  enhAudio.currentTime = 0;
-            origPlayBtn.textContent = '▶';
-            enhPlayBtn.textContent = '▶';
-
+            // 推定用のランダムタスクIDを事前に手元で作って進捗監視を開始する仕組み
+            // (今回は確実にするため、通信開始直後に進捗ストリームを張る裏技を使います)
+            const fakeTaskId = crypto.randomUUID(); 
+            
+            // ファイルの実際のアップロードと処理要求
             try {
-                const response = await fetch('/upload', { method: 'POST', body: formData });
+                // 進捗を追跡するための仕掛け
+                // サーバーが処理を始めると、このエンドポイントで進捗が取れるようになります
+                let eventSource = null;
+
+                // 変換リクエストを投げる
+                const responsePromise = fetch('/upload', { method: 'POST', body: formData });
+
+                // 一瞬待ってから進捗の監視を開始（レスポンスヘッダーから正確なIDを抜く前に、裏で接続を試みる）
+                // より確実にするため、レスポンスが始まってから接続します。
+                const response = await responsePromise;
                 if (!response.ok) throw new Error('変換に失敗しました。');
+
+                // サーバーから渡された本当のTask IDを取得
+                const taskId = response.headers.get('X-Task-ID');
+                
+                if (taskId) {
+                    statusText.textContent = 'AI PROCESSING...';
+                    eventSource = new EventSource(`/progress/${taskId}`);
+                    eventSource.onmessage = (event) => {
+                        const prog = event.data;
+                        progressBar.style.width = `${prog}%`;
+                        progressPercent.textContent = `${prog}%`;
+                        if (prog >= 100) {
+                            statusText.textContent = 'COMPLETED!';
+                            eventSource.close();
+                        }
+                    };
+                }
 
                 const blob = await response.blob();
                 const zip = await JSZip.loadAsync(blob);
                 
                 let origBlob, enhBlob;
                 for (let filename in zip.files) {
-                    if (filename.includes('_original.wav')) {
-                        origBlob = await zip.files[filename].async("blob");
-                    } else if (filename.includes('_enhanced.wav')) {
-                        enhBlob = await zip.files[filename].async("blob");
-                    }
+                    if (filename.includes('_original.wav')) origBlob = await zip.files[filename].async("blob");
+                    if (filename.includes('_enhanced.wav')) enhBlob = await zip.files[filename].async("blob");
                 }
 
-                const origUrl = URL.createObjectURL(origBlob);
-                const enhUrl = URL.createObjectURL(enhBlob);
+                origAudio.src = URL.createObjectURL(origBlob);
+                enhAudio.src = URL.createObjectURL(enhBlob);
 
-                origAudio.src = origUrl;
-                enhAudio.src = enhUrl;
-
-                // ダウンロードリンク設定
-                downloadOriginal.href = origUrl;
-                downloadOriginal.download = file.name.replace(/\.[^/.]+$/, "") + "_original.wav";
-                downloadEnhanced.href = enhUrl;
-                downloadEnhanced.download = file.name.replace(/\.[^/.]+$/, "") + "_enhanced.wav";
+                document.getElementById('downloadOriginal').href = origAudio.src;
+                document.getElementById('downloadOriginal').download = file.name.replace(/\.[^/.]+$/, "") + "_original.wav";
+                document.getElementById('downloadEnhanced').href = enhAudio.src;
+                document.getElementById('downloadEnhanced').download = file.name.replace(/\.[^/.]+$/, "") + "_enhanced.wav";
 
                 document.getElementById('playingName').textContent = file.name;
                 resultArea.classList.remove('hidden');
+
+                if(eventSource) eventSource.close();
 
             } catch (error) {
                 alert(error.message);
@@ -176,49 +193,21 @@
             }
         });
 
-        // 🎵 Beforeプレイヤーのボタン処理
+        // プレイヤーコントロール
         origPlayBtn.addEventListener('click', () => {
-            // Afterが再生中なら止める
-            if (!enhAudio.paused) {
-                enhAudio.pause();
-                enhPlayBtn.textContent = '▶';
-            }
-
-            if (origAudio.paused) {
-                origAudio.play();
-                origPlayBtn.textContent = '⏸';
-                origPlayBtn.classList.add('bg-slate-700');
-            } else {
-                origAudio.pause();
-                origPlayBtn.textContent = '▶';
-                origPlayBtn.classList.remove('bg-slate-700');
-            }
+            if (!enhAudio.paused) { enhAudio.pause(); enhPlayBtn.textContent = '▶'; }
+            if (origAudio.paused) { origAudio.play(); origPlayBtn.textContent = '⏸'; } 
+            else { origAudio.pause(); origPlayBtn.textContent = '▶'; }
         });
 
-        // 🚀 Afterプレイヤーのボタン処理
         enhPlayBtn.addEventListener('click', () => {
-            // Beforeが再生中なら止める
-            if (!origAudio.paused) {
-                origAudio.pause();
-                origPlayBtn.textContent = '▶';
-                origPlayBtn.classList.remove('bg-slate-700');
-            }
-
-            if (enhAudio.paused) {
-                enhAudio.play();
-                enhPlayBtn.textContent = '⏸';
-                enhPlayBtn.classList.replace('bg-cyan-500', 'bg-cyan-600');
-            } else {
-                enhAudio.pause();
-                enhPlayBtn.textContent = '▶';
-                enhPlayBtn.classList.replace('bg-cyan-600', 'bg-cyan-500');
-            }
+            if (!origAudio.paused) { origAudio.pause(); origPlayBtn.textContent = '▶'; }
+            if (enhAudio.paused) { enhAudio.play(); enhPlayBtn.textContent = '⏸'; } 
+            else { enhAudio.pause(); enhPlayBtn.textContent = '▶'; }
         });
 
-        // 再生が最後まで終わったらボタンを元に戻す設定
-        origAudio.addEventListener('ended', () => { origPlayBtn.textContent = '▶'; origPlayBtn.classList.remove('bg-slate-700'); });
-        enhAudio.addEventListener('ended', () => { enhPlayBtn.textContent = '▶'; enhPlayBtn.classList.replace('bg-cyan-600', 'bg-cyan-500'); });
-
+        origAudio.addEventListener('ended', () => origPlayBtn.textContent = '▶');
+        enhAudio.addEventListener('ended', () => enhPlayBtn.textContent = '▶');
     </script>
 </body>
 </html>
