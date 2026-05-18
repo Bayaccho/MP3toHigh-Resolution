@@ -29,12 +29,12 @@ def remove_file(path: str):
     elif os.path.isdir(path):
         shutil.rmtree(path)
 
-# 重低音抽出用のローパスフィルター
 def lowpass_filter(data, cutoff=120, fs=96000, order=5):
     nyq = 0.5 * fs
     normal_cutoff = cutoff / nyq
     b, a = butter(order, normal_cutoff, btype='low')
-    return lfilter(b, a, data)
+    # 🟢 メモリ節約のためfloat32でフィルター計算
+    return lfilter(b, a, data.astype(np.float32))
 
 @app.post("/upload")
 async def upload_audio(
@@ -55,67 +55,59 @@ async def upload_audio(
     enhanced_wav_path = os.path.join(task_dir, f"{base_name}_enhanced.wav")
     zip_output_path = os.path.join(UPLOAD_DIR, f"{unique_id}_result")
 
-    # 🟢 サンプリングレートの分岐（①案の192kHzに対応）
     TARGET_SR = 192000 if mode == "2ch_192_32" else 96000
 
-    # 512MB制限対策（最大60秒）
-    y, sr = librosa.load(input_path, sr=None, mono=False, duration=60.0)
+    print("Loading audio...")
+    # 512MB制限対策（最大60秒、さらに最初からfloat32型で読み込んでメモリを半分にする）
+    y, sr = librosa.load(input_path, sr=None, mono=False, duration=60.0, dtype=np.float32)
     if y.ndim == 1:
         y = np.vstack([y, y])
 
-    # オリジナル音源の保存（聴き比べ用）
     sf.write(orig_wav_path, y.T, sr, subtype='PCM_16')
 
-    # アップサンプリング計算
+    print("Upsampling...")
     num_samples = int(y.shape[1] * TARGET_SR / sr)
-    left = signal.resample(y[0], num_samples)
-    right = signal.resample(y[1], num_samples)
+    # 🟢 処理をfloat32に固定してメモリ爆発を防ぐ
+    left = signal.resample(y[0], num_samples).astype(np.float32)
+    right = signal.resample(y[1], num_samples).astype(np.float32)
 
-    # 高音域の倍音生成（Exciter）
     def highpass(data, cutoff=5000, fs=96000, order=5):
         nyq = 0.5 * fs
         normal_cutoff = cutoff / nyq
         b, a = butter(order, normal_cutoff, btype='high')
-        return lfilter(b, a, data)
+        return lfilter(b, a, data.astype(np.float32))
 
     left_high = highpass(left, fs=TARGET_SR)
     right_high = highpass(right, fs=TARGET_SR)
 
-    left_harm = np.tanh(left_high * 3.5) * 0.12
-    right_harm = np.tanh(right_high * 3.5) * 0.12
+    left_harm = (np.tanh(left_high * 3.5) * 0.12).astype(np.float32)
+    right_harm = (np.tanh(right_high * 3.5) * 0.12).astype(np.float32)
 
     def excite(signal_in):
         analytic = hilbert(signal_in)
-        envelope = np.abs(analytic)
-        return np.sin(signal_in * 25.0) * envelope * 0.015
+        envelope = np.abs(analytic).astype(np.float32)
+        return (np.sin(signal_in * 25.0) * envelope * 0.015).astype(np.float32)
 
     left_air = excite(left_high)
     right_air = excite(right_high)
 
-    # 基本のステレオ拡張
     stereo_boost = 1.08
-    mid = (left + right) * 0.5
-    side = (left - right) * 0.5 * stereo_boost
+    mid = ((left + right) * 0.5).astype(np.float32)
+    side = ((left - right) * 0.5 * stereo_boost).astype(np.float32)
 
-    # チャンネル生成・書き出し分岐
     if mode.startswith("5.1ch"):
         print("Processing 5.1ch Surround...")
-        # 5.1chの割り当て: [L, R, C, LFE, Ls, Rs]
-        center = mid * 0.7
-        lfe = lowpass_filter(mid, fs=TARGET_SR) * 1.2
+        center = (mid * 0.7).astype(np.float32)
+        lfe = lowpass_filter(mid, fs=TARGET_SR)
         
-        # サラウンドリア成分（15msディレイ）
         delay_samples = int(TARGET_SR * 0.015)
-        ls_rear = np.roll(side, delay_samples) * 0.5
-        rs_rear = np.roll(-side, delay_samples) * 0.5
+        ls_rear = (np.roll(side, delay_samples) * 0.5).astype(np.float32)
+        rs_rear = (np.roll(-side, delay_samples) * 0.5).astype(np.float32)
 
         if mode == "5.1ch_96_24_pseudo":
-            # 疑似：ステレオ可モード
             front_l = mid + side + left_harm + left_air + (ls_rear * 0.3)
             front_r = mid - side + right_harm + right_air - (rs_rear * 0.3)
         else:
-            # 🟢 ③案：音響機材用（映画館風シアター・サラウンド）
-            # リアの残響感を高め、フロントは芯のある音に調整
             front_l = mid + side + left_harm + left_air
             front_r = mid - side + right_harm + right_air
             ls_rear = ls_rear * 0.7
@@ -138,7 +130,6 @@ async def upload_audio(
         if peak > 0:
             enhanced_2ch = enhanced_2ch / peak * 0.98
 
-        # 🟢 ①案（32bit float）か 通常の24bitかを判定して書き出し
         if mode == "2ch_192_32":
             sf.write(enhanced_wav_path, enhanced_2ch.T, TARGET_SR, subtype='FLOAT')
         else:

@@ -17,7 +17,7 @@
         
         <div class="text-center mb-8">
             <div class="inline-block text-xs font-bold tracking-widest text-cyan-400 uppercase bg-cyan-950/50 border border-cyan-800/50 px-3 py-1 rounded-full mb-3">
-                AI Audio Studio v3.1
+                AI Audio Studio v3.2
             </div>
             <h1 class="text-3xl font-black tracking-tight text-white bg-gradient-to-r from-white via-slate-200 to-cyan-400 bg-clip-text text-transparent">
                 NEXTGEN PROCESSOR
@@ -36,10 +36,10 @@
             <div class="space-y-1.5">
                 <label class="text-[11px] font-bold tracking-wider text-slate-400 uppercase">変換ターゲット設定</label>
                 <select id="audioMode" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 transition-colors cursor-pointer">
-                    <option value="2ch_96_24" selected>2ch 96kHz / 24bit (高解像度標準)</option>
-                    <option value="2ch_192_32">①案: 2ch 192kHz / 32bit float (最高音質マスタリング)</option>
-                    <option value="5.1ch_96_24_device">③案: 5.1ch 96kHz / 24bit (音響機材用・シアター映画館風)</option>
-                    <option value="5.1ch_96_24_pseudo">5.1ch 96kHz / 24bit (疑似：ステレオ・ヘッドホン可)</option>
+                    <option value="2ch_96_24" selected>2ch Stereo | 96kHz / 24bit (高解像度標準)</option>
+                    <option value="2ch_192_32">2ch Stereo | 192kHz / 32bit float (最高音質マスタリング)</option>
+                    <option value="5.1ch_96_24_device">5.1ch Surround | 96kHz / 24bit (音響機材用・シアター)</option>
+                    <option value="5.1ch_96_24_pseudo">5.1ch Surround | 96kHz / 24bit (疑似：ステレオ・ヘッドホン可)</option>
                 </select>
             </div>
 
@@ -192,7 +192,7 @@
 
             try {
                 const response = await fetch('/upload', { method: 'POST', body: formData });
-                if (!response.ok) throw new Error('変換に失敗しました。');
+                if (!response.ok) throw new Error('変換に失敗しました。メモリ制限の可能性があります。');
 
                 const blob = await response.blob();
                 const zip = await JSZip.loadAsync(blob);
