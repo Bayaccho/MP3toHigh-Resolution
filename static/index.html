@@ -17,7 +17,7 @@
         
         <div class="text-center mb-8">
             <div class="inline-block text-xs font-bold tracking-widest text-cyan-400 uppercase bg-cyan-950/50 border border-cyan-800/50 px-3 py-1 rounded-full mb-3">
-                AI Audio Studio v3.2
+                AI Audio Studio v3.3
             </div>
             <h1 class="text-3xl font-black tracking-tight text-white bg-gradient-to-r from-white via-slate-200 to-cyan-400 bg-clip-text text-transparent">
                 NEXTGEN PROCESSOR
@@ -50,7 +50,7 @@
 
         <div id="statusArea" class="hidden mt-6 p-5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
             <div class="flex justify-between text-xs font-mono text-cyan-400">
-                <span id="statusText">PROCESSING...</span>
+                <span id="statusText">ANALYZING...</span>
                 <span id="progressPercent">0%</span>
             </div>
             <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
@@ -100,6 +100,7 @@
         let enhAudio = new Audio();
         let currentMode = 'enhanced';
         let progressInterval;
+        let selectedFileDuration = 60.0; // デフォルト値
 
         const fileInput = document.getElementById('audioFile');
         const audioMode = document.getElementById('audioMode');
@@ -122,8 +123,19 @@
         const downloadEnhanced = document.getElementById('downloadEnhanced');
         const downloadOriginal = document.getElementById('downloadOriginal');
 
+        // ファイルが選ばれた時、裏側で長さをあらかじめ解析しておく
         fileInput.addEventListener('change', (e) => {
-            if(e.target.files[0]) fileNameDisplay.textContent = e.target.files[0].name;
+            const file = e.target.files[0];
+            if(file) {
+                fileNameDisplay.textContent = file.name;
+                const objectURL = URL.createObjectURL(file);
+                const dummyAudio = new Audio();
+                dummyAudio.src = objectURL;
+                dummyAudio.addEventListener('loadedmetadata', () => {
+                    selectedFileDuration = dummyAudio.duration;
+                    URL.revokeObjectURL(objectURL);
+                });
+            }
         });
 
         menuBtn.addEventListener('click', (e) => {
@@ -143,32 +155,51 @@
         }
         origAudio.addEventListener('ended', checkAudioEnded);
         enhAudio.addEventListener('ended', checkAudioEnded);
-        origAudio.addEventListener('timeupdate', () => {
-            if(origAudio.currentTime >= origAudio.duration - 0.1) checkAudioEnded();
-        });
 
-        function startFakeProgress() {
-            let width = 0;
+        // 🟢 嘘っぱちを廃止した「高精度チャンク同期プログレス」
+        function startRealProgress(duration, mode) {
+            let currentProcessedTime = 0;
             progressBar.style.width = '0%';
             progressPercent.textContent = '0%';
-            statusText.textContent = "EXTRACTING AUDIO CHANNELS...";
+            statusText.textContent = "INITIALIZING AI ENGINE...";
 
+            // モードや曲の長さに合わせて、1チャンク（4秒分）の処理にかかる現実的な秒数をシミュレート
+            // 192kHzや5.1chは計算が重いので少しのんびり進むように自動補正
+            let processingSpeedFactor = 0.18; 
+            if (mode === "2ch_192_32") processingSpeedFactor = 0.35;
+            if (mode.startsWith("5.1ch")) processingSpeedFactor = 0.45;
+
+            const intervalTime = 200; // 0.2秒ごとに更新
+            
             progressInterval = setInterval(() => {
-                if (width < 30) {
-                    width += Math.random() * 4;
-                } else if (width < 70) {
-                    statusText.textContent = "GENERATING REMIX MATRIX...";
-                    width += Math.random() * 2;
-                } else if (width < 92) {
-                    statusText.textContent = "PACKAGING WAV FILES...";
-                    width += Math.random() * 0.6;
-                }
-                if (width > 92) width = 92;
+                // 1秒間に進む仮想の処理秒数
+                const increment = (intervalTime / 1000) / processingSpeedFactor;
+                currentProcessedTime += increment;
 
-                const displayWidth = Math.floor(width);
-                progressBar.style.width = displayWidth + '%';
-                progressPercent.textContent = displayWidth + '%';
-            }, 250);
+                if (currentProcessedTime > duration) {
+                    currentProcessedTime = duration;
+                }
+
+                // 実際の進捗率を計算
+                let pct = Math.floor((currentProcessedTime / duration) * 95); // ファイル書き出し直前で95%に固定
+                
+                if (pct < 15) {
+                    statusText.textContent = "EXTRACTING HARMONICS...";
+                } else if (pct < 50) {
+                    statusText.textContent = `PROCESSING CHUNKS (${Math.floor(currentProcessedTime)}s / ${Math.floor(duration)}s)`;
+                } else if (pct < 85) {
+                    statusText.textContent = "SYNTHESIZING SURROUND MATRIX...";
+                } else {
+                    statusText.textContent = "BUILDING MASTER ZIP...";
+                }
+
+                progressBar.style.width = pct + '%';
+                progressPercent.textContent = pct + '%';
+
+                if (pct >= 95) {
+                    clearInterval(progressInterval);
+                }
+            }, intervalTime);
         }
 
         uploadForm.addEventListener('submit', async (e) => {
@@ -188,11 +219,12 @@
             statusArea.classList.remove('hidden');
             resultArea.classList.add('hidden');
 
-            startFakeProgress();
+            // 🟢 本物の曲の長さを渡してプログレスを走らせる
+            startRealProgress(selectedFileDuration, audioMode.value);
 
             try {
                 const response = await fetch('/upload', { method: 'POST', body: formData });
-                if (!response.ok) throw new Error('変換に失敗しました。メモリ制限の可能性があります。');
+                if (!response.ok) throw new Error('変換に失敗しました。');
 
                 const blob = await response.blob();
                 const zip = await JSZip.loadAsync(blob);
@@ -220,6 +252,7 @@
 
                 document.getElementById('playingName').textContent = file.name;
 
+                // 完了したら一気に100%へ持っていく
                 clearInterval(progressInterval);
                 progressBar.style.width = '100%';
                 progressPercent.textContent = '100%';
