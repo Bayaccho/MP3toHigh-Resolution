@@ -29,11 +29,7 @@ def home():
 async def upload_audio(file: UploadFile = File(...)):
 
     unique_id = str(uuid.uuid4())
-
-    input_path = os.path.join(
-        UPLOAD_DIR,
-        f"{unique_id}_{file.filename}"
-    )
+    input_path = os.path.join(UPLOAD_DIR, f"{unique_id}_{file.filename}")
 
     with open(input_path, "wb") as f:
         f.write(await file.read())
@@ -44,17 +40,21 @@ async def upload_audio(file: UploadFile = File(...)):
     TARGET_SR = 96000
 
     print("Loading audio...")
-    # MP3を扱う場合は環境に audioread がインストールされている必要があります
-    y, sr = librosa.load(input_path, sr=None, mono=False)
+    # 安全のため最大60秒に制限しつつ読み込み
+    y, sr = librosa.load(input_path, sr=None, mono=False, duration=60.0)
 
     if y.ndim == 1:
         y = np.vstack([y, y])
 
-    print("Upsampling...")
-    num_samples = int(y.shape[1] * TARGET_SR / sr)
-
-    left = signal.resample(y[0], num_samples)
-    right = signal.resample(y[1], num_samples)
+    print("Upsampling (Memory-Safe Mode)...")
+    # 💡 signal.resample をやめて、メモリ消費が極めて少ない resample_poly に変更！
+    # 元のサンプリングレート（sr）から 96000（TARGET_SR）への比率を計算して変換します
+    gcd = np.gcd(TARGET_SR, sr)
+    up = TARGET_SR // gcd
+    down = sr // gcd
+    
+    left = signal.resample_poly(y[0], up, down)
+    right = signal.resample_poly(y[1], up, down)
 
     def highpass(data, cutoff=5000, fs=96000, order=5):
         nyq = 0.5 * fs
@@ -79,7 +79,6 @@ async def upload_audio(file: UploadFile = File(...)):
     right_air = excite(right_high)
 
     stereo_boost = 1.08
-
     mid = (left + right) * 0.5
     side = (left - right) * 0.5 * stereo_boost
 
@@ -89,11 +88,7 @@ async def upload_audio(file: UploadFile = File(...)):
     enhanced_left = left_wide + left_harm + left_air
     enhanced_right = right_wide + right_harm + right_air
 
-    enhanced = np.vstack([
-        enhanced_left,
-        enhanced_right
-    ])
-
+    enhanced = np.vstack([enhanced_left, enhanced_right])
     peak = np.max(np.abs(enhanced))
 
     if peak > 0:
@@ -102,12 +97,7 @@ async def upload_audio(file: UploadFile = File(...)):
     enhanced = enhanced.T
 
     print("Saving...")
-    sf.write(
-        output_path,
-        enhanced,
-        TARGET_SR,
-        subtype='PCM_24'
-    )
+    sf.write(output_path, enhanced, TARGET_SR, subtype='PCM_24')
 
     return FileResponse(
         output_path,

@@ -3,66 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NextGen Audio Enhancer</title>
+    <title>Studio Wave - Audio Enhancer</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
         body {
-            background: radial-gradient(circle at center, #1a1c23 0%, #0f1015 100%);
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
         }
-        .neon-glow {
-            box-shadow: 0 0 20px rgba(6, 182, 212, 0.15);
-        }
-        .neon-border:focus-within {
-            box-shadow: 0 0 25px rgba(6, 182, 212, 0.5);
+        .studio-shadow {
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
         }
     </style>
 </head>
-<body class="text-slate-200 min-h-screen flex flex-col items-center justify-center p-6 font-sans">
+<body class="text-slate-700 min-h-screen flex flex-col items-center justify-center p-6 font-sans">
 
-    <div class="w-full max-w-lg bg-slate-900/80 border border-slate-800 rounded-2xl p-8 neon-glow backdrop-blur-xl">
+    <div class="w-full max-w-lg bg-white/90 border border-slate-200/80 rounded-2xl p-8 studio-shadow backdrop-blur-md">
         
         <div class="text-center mb-8">
-            <div class="inline-block text-xs font-bold tracking-widest text-cyan-400 uppercase bg-cyan-950/50 border border-cyan-800/50 px-3 py-1 rounded-full mb-3">
-                AI Audio Processor
+            <div class="inline-block text-[10px] font-bold tracking-widest text-blue-600 uppercase bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-md mb-3">
+                Studio Edition
             </div>
-            <h1 class="text-3xl font-black tracking-tight text-white bg-gradient-to-r from-white via-slate-200 to-cyan-400 bg-clip-text text-transparent">
-                NEXTGEN ENHANCER
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900">
+                STUDIO WAVE
             </h1>
-            <p class="text-xs text-slate-400 mt-2">MP3 → 96kHz / 24bit アップコンバート</p>
+            <p class="text-xs text-slate-400 mt-1.5">AIによる高音域復元 & ハイレゾ化</p>
         </div>
 
         <form id="uploadForm" class="space-y-6">
-            <div class="neon-border group relative border-2 border-dashed border-slate-700 hover:border-cyan-500 rounded-xl p-8 text-center transition-all cursor-pointer bg-slate-950/40">
+            <div class="group relative border border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-8 text-center transition-all cursor-pointer bg-slate-50/50 hover:bg-blue-50/10">
                 <input type="file" id="audioFile" accept="audio/*" class="absolute inset-0 opacity-0 cursor-pointer" required>
                 
                 <div class="space-y-2">
-                    <div class="text-3xl text-slate-500 group-hover:text-cyan-400 transition-colors">🎵</div>
-                    <p class="text-sm font-medium text-slate-300 group-hover:text-white transition-colors" id="fileName">
+                    <div class="text-2xl text-slate-400 group-hover:text-blue-500 transition-colors">✨</div>
+                    <p class="text-xs font-medium text-slate-600 group-hover:text-slate-900 transition-colors" id="fileName">
                         オーディオファイルを選択、またはドロップ
                     </p>
-                    <p class="text-xs text-slate-500">MP3, WAV, etc.</p>
+                    <p class="text-[10px] text-slate-400">MP3, WAV (最大60秒まで)</p>
                 </div>
             </div>
 
-            <button type="submit" id="submitBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3.5 px-4 rounded-xl transition-all shadow-lg shadow-cyan-500/20 active:scale-[0.99] cursor-pointer text-sm tracking-wider">
-                PROCESS AUDIO
+            <button type="submit" id="submitBtn" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-3 px-4 rounded-xl transition-all active:scale-[0.99] cursor-pointer text-xs tracking-wider">
+                オーディオを拡張する
             </button>
         </form>
 
-        <div id="statusArea" class="hidden mt-6 p-4 rounded-xl bg-slate-950/60 border border-slate-800 text-center">
-            <div id="loadingSpinner" class="inline-block w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mb-2"></div>
-            <p id="statusText" class="text-xs font-mono text-cyan-400 tracking-wide">PROCESSING...</p>
+        <div id="statusArea" class="hidden mt-6 p-4 rounded-xl bg-slate-50 border border-slate-100 text-center">
+            <div id="loadingSpinner" class="inline-block w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-1.5"></div>
+            <p id="statusText" class="text-[11px] font-medium text-slate-500">高音質化処理を執行中...</p>
         </div>
 
-        <div id="resultArea" class="hidden mt-6 p-4 rounded-xl bg-cyan-950/20 border border-cyan-800/30 space-y-3">
-            <p class="text-xs font-semibold text-cyan-400 text-center flex items-center justify-center gap-1.5">
-                <span>✨</span> ENHANCEMENT COMPLETE
+        <div id="resultArea" class="hidden mt-6 p-4 rounded-xl bg-blue-50/40 border border-blue-100 space-y-3">
+            <p class="text-[11px] font-bold text-blue-600 text-center flex items-center justify-center gap-1">
+                処理が完了しました
             </p>
-            <div class="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
-                <audio id="audioPlayer" controls class="w-full h-10"></audio>
+            <div class="bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm">
+                <audio id="audioPlayer" controls class="w-full h-9"></audio>
             </div>
-            <a id="downloadLink" href="#" class="block text-center text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white py-2.5 px-4 rounded-lg transition-colors border border-slate-700">
-                WAVファイルをダウンロード
+            <a id="downloadLink" href="#" class="block text-center text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-lg transition-colors">
+                24bit WAV をダウンロード
             </a>
         </div>
 
@@ -78,57 +75,48 @@
         const audioPlayer = document.getElementById('audioPlayer');
         const downloadLink = document.getElementById('downloadLink');
 
-        // ファイルが選択されたら名前を表示
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
                 fileNameDisplay.textContent = file.name;
-                fileNameDisplay.classList.add('text-cyan-400');
+                fileNameDisplay.classList.add('text-blue-600', 'font-semibold');
             }
         });
 
-        // フォーム送信（変換処理）
         uploadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
             const file = fileInput.files[0];
             if (!file) return;
 
             const formData = new FormData();
             formData.append('file', file);
 
-            // UIをローディング状態にする
             submitBtn.disabled = true;
-            submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            submitBtn.classList.add('opacity-40', 'cursor-not-allowed');
             statusArea.classList.remove('hidden');
             resultArea.classList.add('hidden');
 
             try {
-                // FastAPIの /upload に送信
                 const response = await fetch('/upload', {
                     method: 'POST',
                     body: formData
                 });
 
-                if (!response.ok) throw new Error('変換に失敗しました。');
+                if (!response.ok) throw new Error('サーバーでエラーが発生しました。ファイルが長すぎるか、メモリ制限に達した可能性があります。');
 
-                // 返ってきた音声データをブラウザで扱えるURLに変換
                 const blob = await response.blob();
                 const audioUrl = URL.createObjectURL(blob);
 
-                // プレイヤーとダウンロードリンクを設定
                 audioPlayer.src = audioUrl;
                 downloadLink.href = audioUrl;
-                downloadLink.download = file.name.replace(/\.[^/.]+$/, "") + "_enhanced.wav";
+                downloadLink.download = file.name.replace(/\.[^/.]+$/, "") + "_studio.wav";
 
-                // 結果画面を表示
                 resultArea.classList.remove('hidden');
             } catch (error) {
                 alert(error.message);
             } finally {
-                // UIを元に戻す
                 submitBtn.disabled = false;
-                submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                submitBtn.classList.remove('opacity-40', 'cursor-not-allowed');
                 statusArea.classList.add('hidden');
             }
         });
