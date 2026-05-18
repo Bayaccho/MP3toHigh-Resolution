@@ -1,8 +1,9 @@
 fastapi
 uvicorn
+multipart
 python-multipart
 librosa
+numpy
 soundfile
 scipy
-numpy
-jinja2
+soxr

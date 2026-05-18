@@ -6,6 +6,8 @@
     <title>NextGen Audio Studio Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/regions.min.js"></script>
     <style>
         body { background: radial-gradient(circle at center, #1a1c23 0%, #0f1015 100%); }
         .neon-glow { box-shadow: 0 0 20px rgba(6, 182, 212, 0.15); }
@@ -13,11 +15,11 @@
 </head>
 <body class="text-slate-200 min-h-screen flex flex-col items-center justify-center p-6 font-sans">
 
-    <div class="w-full max-w-md bg-slate-900/80 border border-slate-800 rounded-2xl p-8 neon-glow backdrop-blur-xl relative">
+    <div class="w-full max-w-xl bg-slate-900/80 border border-slate-800 rounded-2xl p-8 neon-glow backdrop-blur-xl relative">
         
         <div class="text-center mb-8">
             <div class="inline-block text-xs font-bold tracking-widest text-cyan-400 uppercase bg-cyan-950/50 border border-cyan-800/50 px-3 py-1 rounded-full mb-3">
-                AI Audio Studio v3.3
+                AI Audio Studio v4.0
             </div>
             <h1 class="text-3xl font-black tracking-tight text-white bg-gradient-to-r from-white via-slate-200 to-cyan-400 bg-clip-text text-transparent">
                 NEXTGEN PROCESSOR
@@ -36,11 +38,28 @@
             <div class="space-y-1.5">
                 <label class="text-[11px] font-bold tracking-wider text-slate-400 uppercase">変換ターゲット設定</label>
                 <select id="audioMode" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 transition-colors cursor-pointer">
-                    <option value="2ch_96_24" selected>2ch Stereo | 96kHz / 24bit (高解像度標準)</option>
-                    <option value="2ch_192_32">2ch Stereo | 192kHz / 32bit float (最高音質マスタリング)</option>
-                    <option value="5.1ch_96_24_device">5.1ch Surround | 96kHz / 24bit (音響機材用・シアター)</option>
-                    <option value="5.1ch_96_24_pseudo">5.1ch Surround | 96kHz / 24bit (疑似：ステレオ・ヘッドホン可)</option>
+                    <optgroup label="✨ Soxr エンジン (長尺・フルサイズ対応)">
+                        <option value="2ch_96_24_soxr" selected>2ch Stereo | 96kHz / 24bit (Soxrフル版)</option>
+                        <option value="2ch_192_32_soxr">2ch Stereo | 192kHz / 32bit float (Soxrマスタリングフル版)</option>
+                        <option value="5.1ch_96_24_device_soxr">5.1ch Surround | 96kHz / 24bit (Soxrリアルサラウンドフル版)</option>
+                        <option value="5.1ch_96_24_pseudo_soxr">5.1ch Surround | 96kHz / 24bit (Soxr疑似サラウンドフル版)</option>
+                    </optgroup>
+                    <optgroup label="🔥 Scipy エンジン (極限音質・※選択した60秒のみ切り出し)">
+                        <option value="2ch_96_24_scipy">2ch Stereo | 96kHz / 24bit (Scipyカスタムカット)</option>
+                        <option value="2ch_192_32_scipy">2ch Stereo | 192kHz / 32bit float (Scipyカスタムマスタリング)</option>
+                        <option value="5.1ch_96_24_device_scipy">5.1ch Surround | 96kHz / 24bit (Scipyカスタムシアター)</option>
+                        <option value="5.1ch_96_24_pseudo_scipy">5.1ch Surround | 96kHz / 24bit (Scipyカスタムヘッドホン)</option>
+                    </optgroup>
                 </select>
+            </div>
+
+            <div id="trimmerContainer" class="hidden space-y-2 p-4 rounded-xl bg-slate-950 border border-slate-800">
+                <div class="flex justify-between items-center">
+                    <label class="text-[11px] font-bold tracking-wider text-amber-400 uppercase">🔥 SCIPY CROP RANGE (MAX 60s)</label>
+                    <span id="trimInfo" class="text-xs font-mono text-slate-400">0.0s - 60.0s</span>
+                </div>
+                <div id="waveform" class="bg-slate-900 rounded-lg p-2"></div>
+                <p class="text-[10px] text-slate-500 text-center">※オレンジの枠線を左右にドラッグして、高音質化したい60秒を選んでください。</p>
             </div>
 
             <button type="submit" id="submitBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3.5 px-4 rounded-xl transition-all cursor-pointer text-sm tracking-wider shadow-lg shadow-cyan-500/10">
@@ -50,7 +69,7 @@
 
         <div id="statusArea" class="hidden mt-6 p-5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
             <div class="flex justify-between text-xs font-mono text-cyan-400">
-                <span id="statusText">ANALYZING...</span>
+                <span id="statusText">PROCESSING...</span>
                 <span id="progressPercent">0%</span>
             </div>
             <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
@@ -100,7 +119,12 @@
         let enhAudio = new Audio();
         let currentMode = 'enhanced';
         let progressInterval;
-        let selectedFileDuration = 60.0; // デフォルト値
+        
+        // 🟢 WaveSurfer関係の変数
+        let wavesurfer;
+        let wsRegions;
+        let activeRegion;
+        let currentStartTime = 0.0;
 
         const fileInput = document.getElementById('audioFile');
         const audioMode = document.getElementById('audioMode');
@@ -109,6 +133,8 @@
         const submitBtn = document.getElementById('submitBtn');
         const statusArea = document.getElementById('statusArea');
         const resultArea = document.getElementById('resultArea');
+        const trimmerContainer = document.getElementById('trimmerContainer');
+        const trimInfo = document.getElementById('trimInfo');
         
         const progressBar = document.getElementById('progressBar');
         const progressPercent = document.getElementById('progressPercent');
@@ -123,19 +149,72 @@
         const downloadEnhanced = document.getElementById('downloadEnhanced');
         const downloadOriginal = document.getElementById('downloadOriginal');
 
-        // ファイルが選ばれた時、裏側で長さをあらかじめ解析しておく
+        // 🟢 プルダウンが切り替わったときの処理
+        audioMode.addEventListener('change', () => {
+            if (audioMode.value.includes('_scipy') && fileInput.files[0]) {
+                trimmerContainer.classList.remove('hidden');
+            } else {
+                trimmerContainer.classList.add('hidden');
+            }
+        });
+
+        // 🟢 ファイル選択時：波形を生成する
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
-            if(file) {
-                fileNameDisplay.textContent = file.name;
-                const objectURL = URL.createObjectURL(file);
-                const dummyAudio = new Audio();
-                dummyAudio.src = objectURL;
-                dummyAudio.addEventListener('loadedmetadata', () => {
-                    selectedFileDuration = dummyAudio.duration;
-                    URL.revokeObjectURL(objectURL);
-                });
+            if(!file) return;
+            
+            fileNameDisplay.textContent = file.name;
+            
+            // Scipyモードなら波形エリアを表示
+            if (audioMode.value.includes('_scipy')) {
+                trimmerContainer.classList.remove('hidden');
             }
+
+            // 古い波形インスタンスがあれば破棄
+            if (wavesurfer) wavesurfer.destroy();
+
+            // 新しい波形をセットアップ
+            wavesurfer = WaveSurfer.create({
+                container: '#waveform',
+                waveColor: '#475569',
+                progressColor: '#06b6d4',
+                height: 60,
+                responsive: true
+            });
+
+            // 範囲指定プラグイン初期化
+            wsRegions = wavesurfer.registerPlugin(WaveSurfer.BasePlugin.create());
+
+            const fileURL = URL.createObjectURL(file);
+            wavesurfer.load(fileURL);
+
+            wavesurfer.on('ready', () => {
+                const totalDuration = wavesurfer.getDuration();
+                const endPos = Math.min(60.0, totalDuration);
+
+                // 60秒の枠（リージョン）を生成
+                activeRegion = wsRegions.addRegion({
+                    start: 0,
+                    end: endPos,
+                    color: 'rgba(245, 158, 11, 0.2)', // アンバー（オレンジ風）
+                    drag: true,
+                    resize: true
+                });
+
+                currentStartTime = 0.0;
+                trimInfo.textContent = `0.0s - ${endPos.toFixed(1)}s (${(endPos).toFixed(1)}s選択)`;
+
+                // スライダーが動かされた時の変更をキャッチ
+                wsRegions.on('region-updated', (region) => {
+                    let duration = region.end - region.start;
+                    // 60秒を超えそうになったら強制固定するガード処理
+                    if (duration > 60.1) {
+                        region.setOptions({ end: region.start + 60.0 });
+                    }
+                    currentStartTime = region.start;
+                    trimInfo.textContent = `${region.start.toFixed(1)}s - ${region.end.toFixed(1)}s (${(region.end - region.start).toFixed(1)}s選択)`;
+                });
+            });
         });
 
         menuBtn.addEventListener('click', (e) => {
@@ -156,50 +235,28 @@
         origAudio.addEventListener('ended', checkAudioEnded);
         enhAudio.addEventListener('ended', checkAudioEnded);
 
-        // 🟢 嘘っぱちを廃止した「高精度チャンク同期プログレス」
-        function startRealProgress(duration, mode) {
-            let currentProcessedTime = 0;
+        function startSmoothProgress() {
+            let width = 0;
             progressBar.style.width = '0%';
             progressPercent.textContent = '0%';
-            statusText.textContent = "INITIALIZING AI ENGINE...";
+            statusText.textContent = "UPLOADING & CROP-ANALYZING...";
 
-            // モードや曲の長さに合わせて、1チャンク（4秒分）の処理にかかる現実的な秒数をシミュレート
-            // 192kHzや5.1chは計算が重いので少しのんびり進むように自動補正
-            let processingSpeedFactor = 0.18; 
-            if (mode === "2ch_192_32") processingSpeedFactor = 0.35;
-            if (mode.startsWith("5.1ch")) processingSpeedFactor = 0.45;
-
-            const intervalTime = 200; // 0.2秒ごとに更新
-            
             progressInterval = setInterval(() => {
-                // 1秒間に進む仮想の処理秒数
-                const increment = (intervalTime / 1000) / processingSpeedFactor;
-                currentProcessedTime += increment;
-
-                if (currentProcessedTime > duration) {
-                    currentProcessedTime = duration;
+                if (width < 40) {
+                    width += Math.random() * 5;
+                } else if (width < 85) {
+                    statusText.textContent = "EXTRACTING TARGET SPECTRUM...";
+                    width += Math.random() * 2;
+                } else if (width < 96) {
+                    statusText.textContent = "GENERATING WAV ARTIFACT...";
+                    width += Math.random() * 0.5;
                 }
+                if (width > 96) width = 96;
 
-                // 実際の進捗率を計算
-                let pct = Math.floor((currentProcessedTime / duration) * 95); // ファイル書き出し直前で95%に固定
-                
-                if (pct < 15) {
-                    statusText.textContent = "EXTRACTING HARMONICS...";
-                } else if (pct < 50) {
-                    statusText.textContent = `PROCESSING CHUNKS (${Math.floor(currentProcessedTime)}s / ${Math.floor(duration)}s)`;
-                } else if (pct < 85) {
-                    statusText.textContent = "SYNTHESIZING SURROUND MATRIX...";
-                } else {
-                    statusText.textContent = "BUILDING MASTER ZIP...";
-                }
-
-                progressBar.style.width = pct + '%';
-                progressPercent.textContent = pct + '%';
-
-                if (pct >= 95) {
-                    clearInterval(progressInterval);
-                }
-            }, intervalTime);
+                const displayWidth = Math.floor(width);
+                progressBar.style.width = displayWidth + '%';
+                progressPercent.textContent = displayWidth + '%';
+            }, 300);
         }
 
         uploadForm.addEventListener('submit', async (e) => {
@@ -214,13 +271,14 @@
             const formData = new FormData();
             formData.append('file', file);
             formData.append('mode', audioMode.value);
+            // 🟢 計算された開始位置（秒数）をバックエンドへ引き渡す
+            formData.append('start_time', currentStartTime);
 
             submitBtn.disabled = true;
             statusArea.classList.remove('hidden');
             resultArea.classList.add('hidden');
 
-            // 🟢 本物の曲の長さを渡してプログレスを走らせる
-            startRealProgress(selectedFileDuration, audioMode.value);
+            startSmoothProgress();
 
             try {
                 const response = await fetch('/upload', { method: 'POST', body: formData });
@@ -244,7 +302,7 @@
                 origAudio.src = origUrl;
                 enhAudio.src = enhUrl;
 
-                const suffix = audioMode.value.startsWith("5.1ch") ? "_5.1ch.wav" : "_enhanced.wav";
+                const suffix = audioMode.value.includes("5.1ch") ? "_5.1ch.wav" : "_enhanced.wav";
                 downloadOriginal.href = origUrl;
                 downloadOriginal.download = file.name.replace(/\.[^/.]+$/, "") + "_original.wav";
                 downloadEnhanced.href = enhUrl;
@@ -252,7 +310,6 @@
 
                 document.getElementById('playingName').textContent = file.name;
 
-                // 完了したら一気に100%へ持っていく
                 clearInterval(progressInterval);
                 progressBar.style.width = '100%';
                 progressPercent.textContent = '100%';
